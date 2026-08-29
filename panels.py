@@ -152,6 +152,9 @@ async def cin7_core_connect_panel(ctx, **kwargs) -> object:
         ui.Text(f"Products -- {first.get('label') or first.get('account_id', '')}", variant="subtitle"),
         _products_section(products),
         ui.Divider(),
+        ui.Button("View inventory dashboard", variant="primary", size="sm", full_width=True,
+                  icon="LayoutDashboard", on_click=ui.Call("__panel__cin7_core_center")),
+        ui.Divider(),
         _settings_button(),
     ])
 
@@ -191,14 +194,54 @@ async def cin7_core_connect_help(ctx, **kwargs) -> object:
 
 @ext.panel("cin7_core_center", slot="center", title="Cin7 Core", icon="📦", center_overlay=True)
 async def cin7_core_center_panel(ctx, **kwargs) -> object:
-    """Base center panel -- per UI_INTERFACE_STANDARD.md (2026-08-20).
-    This app has no list/detail content of its own to show in the center
-    by default (everything lives in the sidebar). MUST carry
-    center_overlay=True: per docs.imperal.io/en/concepts/panels, a plain
-    slot="center" panel is registered but the Panel app never fetches it
-    at session-init without that flag. Text is the shared canonical
-    wording -- must stay identical across every app in this situation."""
-    return ui.Empty(
-        message="Nothing to show here -- this app is managed entirely from the sidebar.",
-        icon="👈",
-    )
+    """Post-connect main screen: a store summary plus an inventory health
+    audit, so a real health picture greets the user instead of an empty
+    center panel."""
+    connections = await h._load_connections(ctx)
+    if not connections:
+        return ui.Empty(
+            message="Connect a Cin7 Core account from the sidebar to see it here.",
+            icon="📦",
+        )
+
+    from schemas import GetStoreSummaryParams, AuditInventoryHealthParams
+    body: list[ui.UINode] = []
+
+    summary_result = await h.get_store_summary(ctx, GetStoreSummaryParams())
+    if summary_result.success and summary_result.data:
+        s = summary_result.data
+        body.append(ui.Stats(children=[
+            ui.Stat(label="Sales (30d)", value=str(s.total_sales)),
+            ui.Stat(label="Sales value", value=f"{s.total_sales_value:,.0f}"),
+            ui.Stat(label="Purchases (30d)", value=str(s.total_purchases)),
+            ui.Stat(label="Products", value=str(s.total_products)),
+        ]))
+        body.append(ui.Divider())
+
+    body.append(ui.Text("Inventory health", variant="subtitle"))
+    audit_result = await h.audit_inventory_health(ctx, AuditInventoryHealthParams())
+    if audit_result.success and audit_result.data:
+        r = audit_result.data
+        body.append(ui.Stats(children=[
+            ui.Stat(label="Negative stock", value=str(r.negative_stock_count)),
+            ui.Stat(label="Missing BOM", value=str(r.missing_bom_count)),
+            ui.Stat(label="Overdue purchases", value=str(r.overdue_purchase_count)),
+            ui.Stat(label="Overdue sales", value=str(r.overdue_sale_count)),
+        ]))
+        if r.findings:
+            rows_ui: list[ui.UINode] = []
+            for f in r.findings[:20]:
+                color = {"high": "red", "medium": "yellow"}.get(f.severity, "gray")
+                rows_ui.append(ui.Stack(direction="h", gap=2, align="center", children=[
+                    ui.Badge(label=f.severity.upper(), color=color),
+                    ui.Text(f.detail, variant="caption"),
+                ]))
+            body.append(ui.Divider())
+            body.append(ui.Text("Findings", variant="subtitle"))
+            body.extend(rows_ui)
+        else:
+            body.append(ui.Text("No issues found. 🎉", variant="caption"))
+    else:
+        body.append(ui.Text("Unable to load inventory health right now.", variant="caption"))
+
+    return ui.Stack(direction="v", gap=3, align="stretch", children=body)
