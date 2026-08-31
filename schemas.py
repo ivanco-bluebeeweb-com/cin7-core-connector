@@ -41,6 +41,8 @@ class ProviderConnection(sdl.Entity):
 
 
 class ConnectionList(sdl.Entity):
+    id: str = ""
+    title: str = ""
     connections: list[ProviderConnection] = Field(default_factory=list)
 
 
@@ -527,6 +529,7 @@ class Product(sdl.Entity):
 
 
 class ProductList(sdl.Entity):
+    id: str = ""
     title: str = ""
     items: list[Product] = Field(default_factory=list)
     total: int = 0
@@ -539,11 +542,13 @@ class GenericRecord(sdl.Entity):
     resource) -- returning the raw dict as `data` avoids re-declaring every
     field twice while still giving chat/panel code a stable entity name.
     Same pattern as MuleSoft/Salesforce connectors' raw passthrough rows."""
+    title: str = ""
     id: str = ""
     data: dict = Field(default_factory=dict)
 
 
 class GenericRecordList(sdl.Entity):
+    id: str = ""
     title: str = ""
     items: list[GenericRecord] = Field(default_factory=list)
     total: int = 0
@@ -551,17 +556,21 @@ class GenericRecordList(sdl.Entity):
 
 
 class ActionResultEntity(sdl.Entity):
+    title: str = ""
     ok: bool = True
     id: str = ""
     message: str = ""
 
 
 class DeleteResult(sdl.Entity):
+    title: str = ""
     deleted: bool = False
     id: str = ""
 
 
 class StockLevel(sdl.Entity):
+    id: str = ""
+    title: str = ""
     product_sku: str = ""
     location: str = ""
     on_hand: float = 0.0
@@ -570,11 +579,14 @@ class StockLevel(sdl.Entity):
 
 
 class StockLevelList(sdl.Entity):
+    id: str = ""
     title: str = ""
     items: list[StockLevel] = Field(default_factory=list)
 
 
 class LowStockRow(sdl.Entity):
+    id: str = ""
+    title: str = ""
     product_sku: str = ""
     product_name: str = ""
     total_on_hand: float = 0.0
@@ -582,6 +594,7 @@ class LowStockRow(sdl.Entity):
 
 
 class LowStockReport(sdl.Entity):
+    id: str = ""
     title: str = ""
     rows: list[LowStockRow] = Field(default_factory=list)
     threshold: float = 0.0
@@ -589,6 +602,8 @@ class LowStockReport(sdl.Entity):
 
 
 class DeadStockRow(sdl.Entity):
+    id: str = ""
+    title: str = ""
     product_sku: str = ""
     product_name: str = ""
     on_hand: float = 0.0
@@ -596,6 +611,7 @@ class DeadStockRow(sdl.Entity):
 
 
 class DeadStockReport(sdl.Entity):
+    id: str = ""
     title: str = ""
     rows: list[DeadStockRow] = Field(default_factory=list)
     days_without_sale: int = 0
@@ -603,6 +619,8 @@ class DeadStockReport(sdl.Entity):
 
 
 class InventoryAuditFinding(sdl.Entity):
+    id: str = ""
+    title: str = ""
     category: str = ""
     severity: str = ""
     reference_id: str = ""
@@ -610,6 +628,7 @@ class InventoryAuditFinding(sdl.Entity):
 
 
 class InventoryAuditReport(sdl.Entity):
+    id: str = ""
     title: str = ""
     findings: list[InventoryAuditFinding] = Field(default_factory=list)
     negative_stock_count: int = 0
@@ -619,6 +638,7 @@ class InventoryAuditReport(sdl.Entity):
 
 
 class StoreSummary(sdl.Entity):
+    id: str = ""
     title: str = ""
     days: int = 0
     total_sales: int = 0
@@ -631,6 +651,8 @@ class StoreSummary(sdl.Entity):
 
 
 class AccountInfo(sdl.Entity):
+    id: str = ""
+    title: str = ""
     account_id: str = ""
     company_name: str = ""
     base_currency: str = ""
