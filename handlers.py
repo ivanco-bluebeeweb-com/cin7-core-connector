@@ -124,7 +124,7 @@ async def connect_cin7_core(ctx, params: ConnectCin7CoreParams) -> ActionResult:
     }
     connections.append(record)
     await _save_connections(ctx, connections)
-    return ActionResult.ok(_connection_to_entity(record))
+    return ActionResult.success(_connection_to_entity(record), summary="Cin7 core connected.")
 
 
 @chat.function(
@@ -143,7 +143,7 @@ async def disconnect_cin7_core(ctx, params: DisconnectCin7CoreParams) -> ActionR
     if len(remaining) == len(connections):
         return ActionResult.error("No such connection.", code="CIN7_CONNECTION_NOT_FOUND")
     await _save_connections(ctx, remaining)
-    return ActionResult.ok(DeleteResult(deleted=True, id=params.connection_id))
+    return ActionResult.success(DeleteResult(deleted=True, id=params.connection_id), summary="Cin7 core disconnected.")
 
 
 @chat.function(
@@ -157,7 +157,7 @@ async def disconnect_cin7_core(ctx, params: DisconnectCin7CoreParams) -> ActionR
 async def list_connections(ctx, params: NoParams) -> ActionResult:
     """List the connected Cin7 Core accounts."""
     connections = await _load_connections(ctx)
-    return ActionResult.ok(ConnectionList(connections=[_connection_to_entity(c) for c in connections]))
+    return ActionResult.success(ConnectionList(connections=[_connection_to_entity(c) for c in connections]), summary="Connections listed.")
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -200,12 +200,12 @@ async def list_products(ctx, params: ListProductsParams) -> ActionResult:
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
     products = body.get("Products", []) if isinstance(body, dict) else []
-    return ActionResult.ok(ProductList(
+    return ActionResult.success(ProductList(
         title=f"{len(products)} product(s)",
         items=[_product_to_entity(p) for p in products],
         total=body.get("Total", len(products)) if isinstance(body, dict) else len(products),
         page=params.page,
-    ))
+    ), summary="Products listed.")
 
 
 @chat.function(
@@ -228,7 +228,7 @@ async def get_product(ctx, params: GetProductParams) -> ActionResult:
     products = body.get("Products", []) if isinstance(body, dict) else []
     if not products:
         return ActionResult.error("No such product.", code=cc.NOT_FOUND)
-    return ActionResult.ok(_product_to_entity(products[0]))
+    return ActionResult.success(_product_to_entity(products[0]), summary="Product retrieved.")
 
 
 @chat.function(
@@ -258,7 +258,7 @@ async def create_product(ctx, params: CreateProductParams) -> ActionResult:
         body = await cc.cin7_post(ctx, conn["account_id"], conn["application_key"], "/Product", json={k: v for k, v in payload.items() if v is not None}, action="create product")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(Product(id=body.get("ID", ""), title=params.name, name=params.name, sku=params.sku, category=params.category, brand=params.brand, product_type=params.product_type))
+    return ActionResult.success(Product(id=body.get("ID", ""), title=params.name, name=params.name, sku=params.sku, category=params.category, brand=params.brand, product_type=params.product_type), summary="Product created.")
 
 
 @chat.function(
@@ -290,7 +290,7 @@ async def update_product(ctx, params: UpdateProductParams) -> ActionResult:
         await cc.cin7_put(ctx, conn["account_id"], conn["application_key"], "/Product", json=payload, action="update product")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(Product(id=params.product_id, title=params.name or params.product_id))
+    return ActionResult.success(Product(id=params.product_id, title=params.name or params.product_id), summary="Product updated.")
 
 
 @chat.function(
@@ -311,7 +311,7 @@ async def deprecate_product(ctx, params: DeprecateProductParams) -> ActionResult
         await cc.cin7_put(ctx, conn["account_id"], conn["application_key"], "/Product", json={"ID": params.product_id, "IsDeprecated": True}, action="deprecate product")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(Product(id=params.product_id, title="deprecated", is_deprecated=True))
+    return ActionResult.success(Product(id=params.product_id, title="deprecated", is_deprecated=True), summary="Deprecate product done.")
 
 
 @chat.function(
@@ -339,7 +339,7 @@ async def get_product_availability(ctx, params: GetProductAvailabilityParams) ->
         on_hand=float(r.get("OnHand", 0) or 0), available=float(r.get("Available", 0) or 0),
         allocated=float(r.get("Allocated", 0) or 0),
     ) for r in (rows or [])]
-    return ActionResult.ok(StockLevelList(title=f"{len(items)} location(s)", items=items))
+    return ActionResult.success(StockLevelList(title=f"{len(items)} location(s)", items=items), summary="Product availability retrieved.")
 
 
 @chat.function(
@@ -363,7 +363,7 @@ async def list_product_price_tiers(ctx, params: ListProductPriceTiersParams) -> 
     if not products:
         return ActionResult.error("No such product.", code=cc.NOT_FOUND)
     prices = {k: v for k, v in products[0].items() if k.startswith("PriceTier") or k == "RRP"}
-    return ActionResult.ok(GenericRecordList(items=[GenericRecord(id=k, data={"price": v}) for k, v in prices.items()]))
+    return ActionResult.success(GenericRecordList(items=[GenericRecord(id=k, data={"price": v}) for k, v in prices.items()]), summary="Product price tiers listed.")
 
 
 @chat.function(
@@ -384,7 +384,7 @@ async def set_product_price_tier(ctx, params: SetProductPriceTierParams) -> Acti
         await cc.cin7_put(ctx, conn["account_id"], conn["application_key"], "/Product", json={"ID": params.product_id, params.price_column: params.price}, action="set product price tier")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(ActionResultEntity(id=params.product_id, message=f"{params.price_column} set to {params.price}"))
+    return ActionResult.success(ActionResultEntity(id=params.product_id, message=f"{params.price_column} set to {params.price}"), summary="Product price tier updated.")
 
 
 @chat.function(
@@ -404,7 +404,7 @@ async def get_product_bom(ctx, params: GetProductBOMParams) -> ActionResult:
         body = await cc.cin7_get(ctx, conn["account_id"], conn["application_key"], "/production/product-production-bom", params={"productId": params.product_id}, action="get product BOM")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=params.product_id, data=body if isinstance(body, dict) else {"result": body}))
+    return ActionResult.success(GenericRecord(id=params.product_id, data=body if isinstance(body, dict) else {"result": body}), summary="Product bom retrieved.")
 
 
 @chat.function(
@@ -430,7 +430,7 @@ async def create_product_bom(ctx, params: CreateProductBOMParams) -> ActionResul
         body = await cc.cin7_post(ctx, conn["account_id"], conn["application_key"], "/production/product-production-bom", json=payload, action="create product BOM")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {}))
+    return ActionResult.success(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {}), summary="Product bom created.")
 
 
 @chat.function(
@@ -451,7 +451,7 @@ async def list_product_categories(ctx, params: ListProductCategoriesParams) -> A
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
     rows = body if isinstance(body, list) else body.get("ProductCategoryList", []) if isinstance(body, dict) else []
-    return ActionResult.ok(GenericRecordList(items=[GenericRecord(id=str(r.get("ID", r)), data=r if isinstance(r, dict) else {"name": r}) for r in rows]))
+    return ActionResult.success(GenericRecordList(items=[GenericRecord(id=str(r.get("ID", r)), data=r if isinstance(r, dict) else {"name": r}) for r in rows]), summary="Product categories listed.")
 
 
 @chat.function(
@@ -472,7 +472,7 @@ async def list_price_lists(ctx, params: ListPriceListsParams) -> ActionResult:
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
     rows = body if isinstance(body, list) else body.get("PriceColumnList", []) if isinstance(body, dict) else []
-    return ActionResult.ok(GenericRecordList(items=[GenericRecord(id=str(r.get("ID", r)), data=r if isinstance(r, dict) else {"name": r}) for r in rows]))
+    return ActionResult.success(GenericRecordList(items=[GenericRecord(id=str(r.get("ID", r)), data=r if isinstance(r, dict) else {"name": r}) for r in rows]), summary="Price lists listed.")
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -504,7 +504,7 @@ async def list_customers(ctx, params: ListCustomersParams) -> ActionResult:
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
     rows = body.get("CustomerList", []) if isinstance(body, dict) else []
-    return ActionResult.ok(GenericRecordList(title=f"{len(rows)} customer(s)", items=[_customer_to_entity(r) for r in rows], page=params.page))
+    return ActionResult.success(GenericRecordList(title=f"{len(rows)} customer(s)", items=[_customer_to_entity(r) for r in rows], page=params.page), summary="Customers listed.")
 
 
 @chat.function(
@@ -527,7 +527,7 @@ async def get_customer(ctx, params: GetCustomerParams) -> ActionResult:
     rows = body.get("CustomerList", []) if isinstance(body, dict) else []
     if not rows:
         return ActionResult.error("No such customer.", code=cc.NOT_FOUND)
-    return ActionResult.ok(_customer_to_entity(rows[0]))
+    return ActionResult.success(_customer_to_entity(rows[0]), summary="Customer retrieved.")
 
 
 @chat.function(
@@ -553,7 +553,7 @@ async def create_customer(ctx, params: CreateCustomerParams) -> ActionResult:
         body = await cc.cin7_post(ctx, conn["account_id"], conn["application_key"], "/customer", json={k: v for k, v in payload.items() if v is not None}, action="create customer")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {"name": params.name}))
+    return ActionResult.success(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {"name": params.name}), summary="Customer created.")
 
 
 @chat.function(
@@ -578,7 +578,7 @@ async def update_customer(ctx, params: UpdateCustomerParams) -> ActionResult:
         await cc.cin7_put(ctx, conn["account_id"], conn["application_key"], "/customer", json=payload, action="update customer")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=params.customer_id, data=payload))
+    return ActionResult.success(GenericRecord(id=params.customer_id, data=payload), summary="Customer updated.")
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -606,7 +606,7 @@ async def list_suppliers(ctx, params: ListSuppliersParams) -> ActionResult:
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
     rows = body.get("SupplierList", []) if isinstance(body, dict) else []
-    return ActionResult.ok(GenericRecordList(title=f"{len(rows)} supplier(s)", items=[GenericRecord(id=r.get("ID", ""), data=r) for r in rows], page=params.page))
+    return ActionResult.success(GenericRecordList(title=f"{len(rows)} supplier(s)", items=[GenericRecord(id=r.get("ID", ""), data=r) for r in rows], page=params.page), summary="Suppliers listed.")
 
 
 @chat.function(
@@ -629,7 +629,7 @@ async def get_supplier(ctx, params: GetSupplierParams) -> ActionResult:
     rows = body.get("SupplierList", []) if isinstance(body, dict) else []
     if not rows:
         return ActionResult.error("No such supplier.", code=cc.NOT_FOUND)
-    return ActionResult.ok(GenericRecord(id=rows[0].get("ID", ""), data=rows[0]))
+    return ActionResult.success(GenericRecord(id=rows[0].get("ID", ""), data=rows[0]), summary="Supplier retrieved.")
 
 
 @chat.function(
@@ -654,7 +654,7 @@ async def create_supplier(ctx, params: CreateSupplierParams) -> ActionResult:
         body = await cc.cin7_post(ctx, conn["account_id"], conn["application_key"], "/supplier", json={k: v for k, v in payload.items() if v is not None}, action="create supplier")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {"name": params.name}))
+    return ActionResult.success(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {"name": params.name}), summary="Supplier created.")
 
 
 @chat.function(
@@ -679,7 +679,7 @@ async def update_supplier(ctx, params: UpdateSupplierParams) -> ActionResult:
         await cc.cin7_put(ctx, conn["account_id"], conn["application_key"], "/supplier", json=payload, action="update supplier")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=params.supplier_id, data=payload))
+    return ActionResult.success(GenericRecord(id=params.supplier_id, data=payload), summary="Supplier updated.")
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -708,7 +708,7 @@ async def list_sales(ctx, params: ListSalesParams) -> ActionResult:
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
     rows = body.get("SaleList", []) if isinstance(body, dict) else []
-    return ActionResult.ok(GenericRecordList(title=f"{len(rows)} sale(s)", items=[GenericRecord(id=r.get("SaleID", ""), data=r) for r in rows], page=params.page))
+    return ActionResult.success(GenericRecordList(title=f"{len(rows)} sale(s)", items=[GenericRecord(id=r.get("SaleID", ""), data=r) for r in rows], page=params.page), summary="Sales listed.")
 
 
 @chat.function(
@@ -730,7 +730,7 @@ async def get_sale(ctx, params: GetSaleParams) -> ActionResult:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
     if not isinstance(body, dict) or not body:
         return ActionResult.error("No such sale.", code=cc.NOT_FOUND)
-    return ActionResult.ok(GenericRecord(id=body.get("ID", params.sale_id), data=body))
+    return ActionResult.success(GenericRecord(id=body.get("ID", params.sale_id), data=body), summary="Sale retrieved.")
 
 
 @chat.function(
@@ -756,7 +756,7 @@ async def create_sale_quote(ctx, params: CreateSaleQuoteParams) -> ActionResult:
         body = await cc.cin7_post(ctx, conn["account_id"], conn["application_key"], "/sale", json={k: v for k, v in payload.items() if v is not None}, action="create sale quote")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {}))
+    return ActionResult.success(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {}), summary="Sale quote created.")
 
 
 @chat.function(
@@ -777,7 +777,7 @@ async def authorise_sale_order(ctx, params: AuthoriseSaleOrderParams) -> ActionR
         body = await cc.cin7_post(ctx, conn["account_id"], conn["application_key"], "/sale/order", json={"ID": params.sale_id}, action="authorise sale order")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=params.sale_id, data=body if isinstance(body, dict) else {}))
+    return ActionResult.success(GenericRecord(id=params.sale_id, data=body if isinstance(body, dict) else {}), summary="Authorise sale order done.")
 
 
 @chat.function(
@@ -798,7 +798,7 @@ async def void_sale(ctx, params: VoidSaleParams) -> ActionResult:
         await cc.cin7_post(ctx, conn["account_id"], conn["application_key"], "/sale/void", json={"ID": params.sale_id}, action="void sale")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(ActionResultEntity(id=params.sale_id, message="voided"))
+    return ActionResult.success(ActionResultEntity(id=params.sale_id, message="voided"), summary="Void sale done.")
 
 
 @chat.function(
@@ -824,7 +824,7 @@ async def create_sale_shipment(ctx, params: CreateSaleShipmentParams) -> ActionR
         body = await cc.cin7_post(ctx, conn["account_id"], conn["application_key"], "/sale/shipment", json={k: v for k, v in payload.items() if v is not None}, action="create sale shipment")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=params.sale_id, data=body if isinstance(body, dict) else {}))
+    return ActionResult.success(GenericRecord(id=params.sale_id, data=body if isinstance(body, dict) else {}), summary="Sale shipment created.")
 
 
 @chat.function(
@@ -845,7 +845,7 @@ async def authorise_sale_invoice(ctx, params: AuthoriseSaleInvoiceParams) -> Act
         body = await cc.cin7_post(ctx, conn["account_id"], conn["application_key"], "/sale/invoice", json={"ID": params.sale_id}, action="authorise sale invoice")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=params.sale_id, data=body if isinstance(body, dict) else {}))
+    return ActionResult.success(GenericRecord(id=params.sale_id, data=body if isinstance(body, dict) else {}), summary="Authorise sale invoice done.")
 
 
 @chat.function(
@@ -870,7 +870,7 @@ async def create_sale_payment(ctx, params: CreateSalePaymentParams) -> ActionRes
         body = await cc.cin7_post(ctx, conn["account_id"], conn["application_key"], "/sale/payment", json={k: v for k, v in payload.items() if v is not None}, action="create sale payment")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {}))
+    return ActionResult.success(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {}), summary="Sale payment created.")
 
 
 @chat.function(
@@ -898,7 +898,7 @@ async def update_sale_payment(ctx, params: UpdateSalePaymentParams) -> ActionRes
         await cc.cin7_put(ctx, conn["account_id"], conn["application_key"], "/sale/payment", json=payload, action="update sale payment")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=params.payment_id, data=payload))
+    return ActionResult.success(GenericRecord(id=params.payment_id, data=payload), summary="Sale payment updated.")
 
 
 @chat.function(
@@ -919,7 +919,7 @@ async def list_sale_credit_notes(ctx, params: ListSaleCreditNotesParams) -> Acti
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
     rows = body if isinstance(body, list) else body.get("CreditNoteList", []) if isinstance(body, dict) else []
-    return ActionResult.ok(GenericRecordList(items=[GenericRecord(id=str(r.get("ID", "")), data=r) for r in rows]))
+    return ActionResult.success(GenericRecordList(items=[GenericRecord(id=str(r.get("ID", "")), data=r) for r in rows]), summary="Sale credit notes listed.")
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -948,7 +948,7 @@ async def list_purchases(ctx, params: ListPurchasesParams) -> ActionResult:
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
     rows = body.get("PurchaseList", []) if isinstance(body, dict) else []
-    return ActionResult.ok(GenericRecordList(title=f"{len(rows)} purchase(s)", items=[GenericRecord(id=r.get("PurchaseID", ""), data=r) for r in rows], page=params.page))
+    return ActionResult.success(GenericRecordList(title=f"{len(rows)} purchase(s)", items=[GenericRecord(id=r.get("PurchaseID", ""), data=r) for r in rows], page=params.page), summary="Purchases listed.")
 
 
 @chat.function(
@@ -968,7 +968,7 @@ async def get_purchase(ctx, params: GetPurchaseParams) -> ActionResult:
         body = await cc.cin7_get(ctx, conn["account_id"], conn["application_key"], "/purchase", params={"ID": params.purchase_id}, action="get purchase")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=params.purchase_id, data=body if isinstance(body, dict) else {}))
+    return ActionResult.success(GenericRecord(id=params.purchase_id, data=body if isinstance(body, dict) else {}), summary="Purchase retrieved.")
 
 
 @chat.function(
@@ -994,7 +994,7 @@ async def create_purchase_order(ctx, params: CreatePurchaseOrderParams) -> Actio
         body = await cc.cin7_post(ctx, conn["account_id"], conn["application_key"], "/purchase", json={k: v for k, v in payload.items() if v is not None}, action="create purchase order")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {}))
+    return ActionResult.success(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {}), summary="Purchase order created.")
 
 
 @chat.function(
@@ -1015,7 +1015,7 @@ async def authorise_purchase_order(ctx, params: AuthorisePurchaseOrderParams) ->
         await cc.cin7_post(ctx, conn["account_id"], conn["application_key"], "/purchase/authorise", json={"ID": params.purchase_id}, action="authorise purchase order")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(ActionResultEntity(id=params.purchase_id, message="Purchase order authorised."))
+    return ActionResult.success(ActionResultEntity(id=params.purchase_id, message="Purchase order authorised."), summary="Authorise purchase order done.")
 
 
 @chat.function(
@@ -1036,7 +1036,7 @@ async def void_purchase(ctx, params: VoidPurchaseParams) -> ActionResult:
         await cc.cin7_post(ctx, conn["account_id"], conn["application_key"], "/purchase/void", json={"ID": params.purchase_id}, action="void purchase")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(ActionResultEntity(id=params.purchase_id, message="Purchase voided."))
+    return ActionResult.success(ActionResultEntity(id=params.purchase_id, message="Purchase voided."), summary="Void purchase done.")
 
 
 @chat.function(
@@ -1061,7 +1061,7 @@ async def receive_purchase(ctx, params: ReceivePurchaseParams) -> ActionResult:
         body = await cc.cin7_post(ctx, conn["account_id"], conn["application_key"], "/purchase/receive", json=payload, action="receive purchase")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=params.purchase_id, data=body if isinstance(body, dict) else {}))
+    return ActionResult.success(GenericRecord(id=params.purchase_id, data=body if isinstance(body, dict) else {}), summary="Receive purchase done.")
 
 
 @chat.function(
@@ -1082,7 +1082,7 @@ async def authorise_purchase_invoice(ctx, params: AuthorisePurchaseInvoiceParams
         await cc.cin7_post(ctx, conn["account_id"], conn["application_key"], "/purchase/invoice/authorise", json={"ID": params.purchase_id}, action="authorise purchase invoice")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(ActionResultEntity(id=params.purchase_id, message="Purchase invoice authorised."))
+    return ActionResult.success(ActionResultEntity(id=params.purchase_id, message="Purchase invoice authorised."), summary="Authorise purchase invoice done.")
 
 
 @chat.function(
@@ -1107,7 +1107,7 @@ async def create_purchase_payment(ctx, params: CreatePurchasePaymentParams) -> A
         body = await cc.cin7_post(ctx, conn["account_id"], conn["application_key"], "/purchase/payment", json={k: v for k, v in payload.items() if v is not None}, action="create purchase payment")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {}))
+    return ActionResult.success(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {}), summary="Purchase payment created.")
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -1133,7 +1133,7 @@ async def list_locations(ctx, params: ListLocationsParams) -> ActionResult:
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
     rows = body if isinstance(body, list) else body.get("LocationList", []) if isinstance(body, dict) else []
-    return ActionResult.ok(GenericRecordList(items=[GenericRecord(id=str(r.get("ID", r)), data=r if isinstance(r, dict) else {"name": r}) for r in rows]))
+    return ActionResult.success(GenericRecordList(items=[GenericRecord(id=str(r.get("ID", r)), data=r if isinstance(r, dict) else {"name": r}) for r in rows]), summary="Locations listed.")
 
 
 @chat.function(
@@ -1163,7 +1163,7 @@ async def get_stock_on_hand(ctx, params: GetStockOnHandParams) -> ActionResult:
         )
         for r in rows
     ]
-    return ActionResult.ok(StockLevelList(items=levels))
+    return ActionResult.success(StockLevelList(items=levels), summary="Stock on hand retrieved.")
 
 
 @chat.function(
@@ -1187,7 +1187,7 @@ async def create_stock_adjustment(ctx, params: CreateStockAdjustmentParams) -> A
         }, action="create stock adjustment")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {}))
+    return ActionResult.success(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {}), summary="Stock adjustment created.")
 
 
 @chat.function(
@@ -1210,7 +1210,7 @@ async def list_stock_adjustments(ctx, params: ListStockAdjustmentsParams) -> Act
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
     rows = body.get("StockAdjustmentList", []) if isinstance(body, dict) else []
-    return ActionResult.ok(GenericRecordList(items=[GenericRecord(id=r.get("ID", ""), data=r) for r in rows], page=params.page))
+    return ActionResult.success(GenericRecordList(items=[GenericRecord(id=r.get("ID", ""), data=r) for r in rows], page=params.page), summary="Stock adjustments listed.")
 
 
 @chat.function(
@@ -1231,7 +1231,7 @@ async def void_stock_adjustment(ctx, params: VoidStockAdjustmentParams) -> Actio
         await cc.cin7_post(ctx, conn["account_id"], conn["application_key"], "/stockadjustment/void", json={"ID": params.adjustment_id}, action="void stock adjustment")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(ActionResultEntity(id=params.adjustment_id, message="Stock adjustment voided."))
+    return ActionResult.success(ActionResultEntity(id=params.adjustment_id, message="Stock adjustment voided."), summary="Void stock adjustment done.")
 
 
 @chat.function(
@@ -1255,7 +1255,7 @@ async def create_stock_transfer(ctx, params: CreateStockTransferParams) -> Actio
         }, action="create stock transfer")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {}))
+    return ActionResult.success(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {}), summary="Stock transfer created.")
 
 
 @chat.function(
@@ -1276,7 +1276,7 @@ async def list_stock_transfers(ctx, params: ListStockTransfersParams) -> ActionR
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
     rows = body.get("StockTransferList", []) if isinstance(body, dict) else []
-    return ActionResult.ok(GenericRecordList(items=[GenericRecord(id=r.get("ID", ""), data=r) for r in rows]))
+    return ActionResult.success(GenericRecordList(items=[GenericRecord(id=r.get("ID", ""), data=r) for r in rows]), summary="Stock transfers listed.")
 
 
 @chat.function(
@@ -1299,7 +1299,7 @@ async def create_stock_take(ctx, params: CreateStockTakeParams) -> ActionResult:
         }, action="create stock take")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {}))
+    return ActionResult.success(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {}), summary="Stock take created.")
 
 
 @chat.function(
@@ -1320,7 +1320,7 @@ async def list_stock_takes(ctx, params: ListStockTakesParams) -> ActionResult:
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
     rows = body.get("StockTakeList", []) if isinstance(body, dict) else []
-    return ActionResult.ok(GenericRecordList(items=[GenericRecord(id=r.get("ID", ""), data=r) for r in rows]))
+    return ActionResult.success(GenericRecordList(items=[GenericRecord(id=r.get("ID", ""), data=r) for r in rows]), summary="Stock takes listed.")
 
 
 @chat.function(
@@ -1341,7 +1341,7 @@ async def complete_stock_take(ctx, params: CompleteStockTakeParams) -> ActionRes
         await cc.cin7_post(ctx, conn["account_id"], conn["application_key"], "/stocktake/complete", json={"ID": params.stock_take_id}, action="complete stock take")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(ActionResultEntity(id=params.stock_take_id, message="Stocktake completed and applied."))
+    return ActionResult.success(ActionResultEntity(id=params.stock_take_id, message="Stocktake completed and applied."), summary="Complete stock take done.")
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -1369,7 +1369,7 @@ async def list_production_runs(ctx, params: ListProductionRunsParams) -> ActionR
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
     rows = body.get("ProductionList", []) if isinstance(body, dict) else []
-    return ActionResult.ok(GenericRecordList(items=[GenericRecord(id=r.get("ID", ""), data=r) for r in rows], page=params.page))
+    return ActionResult.success(GenericRecordList(items=[GenericRecord(id=r.get("ID", ""), data=r) for r in rows], page=params.page), summary="Production runs listed.")
 
 
 @chat.function(
@@ -1389,7 +1389,7 @@ async def get_production_run(ctx, params: GetProductionRunParams) -> ActionResul
         body = await cc.cin7_get(ctx, conn["account_id"], conn["application_key"], "/production", params={"ID": params.run_id}, action="get production run")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=params.run_id, data=body if isinstance(body, dict) else {}))
+    return ActionResult.success(GenericRecord(id=params.run_id, data=body if isinstance(body, dict) else {}), summary="Production run retrieved.")
 
 
 @chat.function(
@@ -1415,7 +1415,7 @@ async def create_production_run(ctx, params: CreateProductionRunParams) -> Actio
         body = await cc.cin7_post(ctx, conn["account_id"], conn["application_key"], "/production", json={k: v for k, v in payload.items() if v is not None}, action="create production run")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {}))
+    return ActionResult.success(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {}), summary="Production run created.")
 
 
 @chat.function(
@@ -1436,7 +1436,7 @@ async def update_production_run_status(ctx, params: UpdateProductionRunStatusPar
         await cc.cin7_put(ctx, conn["account_id"], conn["application_key"], "/production", json={"ID": params.run_id, "Status": params.status}, action="update production run status")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(ActionResultEntity(id=params.run_id, message=f"Production run moved to {params.status}."))
+    return ActionResult.success(ActionResultEntity(id=params.run_id, message=f"Production run moved to {params.status}."), summary="Production run status updated.")
 
 
 @chat.function(
@@ -1457,7 +1457,7 @@ async def void_production_run(ctx, params: VoidProductionRunParams) -> ActionRes
         await cc.cin7_put(ctx, conn["account_id"], conn["application_key"], "/production", json={"ID": params.run_id, "Status": "VOIDED"}, action="void production run")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(ActionResultEntity(id=params.run_id, message="Production run voided."))
+    return ActionResult.success(ActionResultEntity(id=params.run_id, message="Production run voided."), summary="Void production run done.")
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -1483,7 +1483,7 @@ async def list_webhooks(ctx, params: ListWebhooksParams) -> ActionResult:
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
     rows = body if isinstance(body, list) else body.get("WebhookList", []) if isinstance(body, dict) else []
-    return ActionResult.ok(GenericRecordList(items=[GenericRecord(id=r.get("ID", ""), data=r) for r in rows]))
+    return ActionResult.success(GenericRecordList(items=[GenericRecord(id=r.get("ID", ""), data=r) for r in rows]), summary="Webhooks listed.")
 
 
 @chat.function(
@@ -1510,7 +1510,7 @@ async def create_webhook(ctx, params: CreateWebhookParams) -> ActionResult:
         body = await cc.cin7_post(ctx, conn["account_id"], conn["application_key"], "/webhooks", json={k: v for k, v in payload.items() if v is not None}, action="create webhook")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {}))
+    return ActionResult.success(GenericRecord(id=body.get("ID", "") if isinstance(body, dict) else "", data=body if isinstance(body, dict) else {}), summary="Webhook created.")
 
 
 @chat.function(
@@ -1536,7 +1536,7 @@ async def update_webhook(ctx, params: UpdateWebhookParams) -> ActionResult:
         await cc.cin7_put(ctx, conn["account_id"], conn["application_key"], "/webhooks", json=payload, action="update webhook")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(GenericRecord(id=params.webhook_id, data=payload))
+    return ActionResult.success(GenericRecord(id=params.webhook_id, data=payload), summary="Webhook updated.")
 
 
 @chat.function(
@@ -1557,7 +1557,7 @@ async def delete_webhook(ctx, params: DeleteWebhookParams) -> ActionResult:
         await cc.cin7_delete(ctx, conn["account_id"], conn["application_key"], "/webhooks", params={"ID": params.webhook_id}, action="delete webhook")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(DeleteResult(id=params.webhook_id, deleted=True))
+    return ActionResult.success(DeleteResult(id=params.webhook_id, deleted=True), summary="Webhook deleted.")
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -1581,10 +1581,10 @@ async def _list_ref(ctx, params, path: str, action: str, list_key: str = "") -> 
         rows = next((v for v in body.values() if isinstance(v, list)), [])
     else:
         rows = []
-    return ActionResult.ok(GenericRecordList(items=[
+    return ActionResult.success(GenericRecordList(items=[
         GenericRecord(id=str(r.get("ID", r)) if isinstance(r, dict) else str(r), data=r if isinstance(r, dict) else {"name": r})
         for r in rows
-    ]))
+    ]), summary=" list ref done.")
 
 
 @chat.function(
@@ -1656,10 +1656,10 @@ async def get_account_info(ctx, params: GetAccountInfoParams) -> ActionResult:
         body = await cc.cin7_get(ctx, conn["account_id"], conn["application_key"], "/me", action="get account info")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(AccountInfo(
+    return ActionResult.success(AccountInfo(
         company_name=body.get("Company", ""), base_currency=body.get("BaseCurrency", ""),
         timezone=body.get("TimeZone", ""), account_id=conn["account_id"],
-    ))
+    ), summary="Account info retrieved.")
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -1695,10 +1695,10 @@ async def get_low_stock_report(ctx, params: GetLowStockReportParams) -> ActionRe
         )
         for r in rows if r.get("OnHand", 0.0) <= params.threshold
     ]
-    return ActionResult.ok(LowStockReport(
+    return ActionResult.success(LowStockReport(
         title=f"{len(flagged)} SKU(s) at or below {params.threshold}",
         rows=flagged, threshold=params.threshold, scanned_count=len(rows),
-    ))
+    ), summary="Low stock report retrieved.")
 
 
 @chat.function(
@@ -1731,10 +1731,10 @@ async def get_dead_stock_report(ctx, params: GetDeadStockReportParams) -> Action
         for r in stock_rows
         if r.get("OnHand", 0.0) > 0 and (not r.get("LastSaleDate") or r.get("LastSaleDate", "") < cutoff)
     ]
-    return ActionResult.ok(DeadStockReport(
+    return ActionResult.success(DeadStockReport(
         title=f"{len(flagged)} dead-stock SKU(s)",
         rows=flagged, days_without_sale=params.days_without_sale, scanned_count=len(stock_rows),
-    ))
+    ), summary="Dead stock report retrieved.")
 
 
 @chat.function(
@@ -1801,11 +1801,11 @@ async def audit_inventory_health(ctx, params: AuditInventoryHealthParams) -> Act
             ))
     except cc.ClientFail:
         pass
-    return ActionResult.ok(InventoryAuditReport(
+    return ActionResult.success(InventoryAuditReport(
         title=f"{len(findings)} finding(s)",
         findings=findings, negative_stock_count=negative_count, missing_bom_count=missing_bom_count,
         overdue_purchase_count=overdue_purchase_count, overdue_sale_count=overdue_sale_count,
-    ))
+    ), summary="Inventory health audit ready.")
 
 
 @chat.function(
@@ -1833,7 +1833,7 @@ async def get_store_summary(ctx, params: GetStoreSummaryParams) -> ActionResult:
         supp_body = await cc.cin7_get(ctx, conn["account_id"], conn["application_key"], "/supplier", params={"Limit": 1}, action="summary: count suppliers")
     except cc.ClientFail as e:
         return ActionResult.error(e.payload.get("error"), code=e.payload.get("error_code"))
-    return ActionResult.ok(StoreSummary(
+    return ActionResult.success(StoreSummary(
         title=f"Cin7 Core summary, last {params.days} days",
         days=params.days,
         total_sales=len(sales), total_sales_value=sum(s.get("Total", 0.0) for s in sales),
@@ -1841,4 +1841,4 @@ async def get_store_summary(ctx, params: GetStoreSummaryParams) -> ActionResult:
         total_products=prod_body.get("Total", 0) if isinstance(prod_body, dict) else 0,
         total_customers=cust_body.get("Total", 0) if isinstance(cust_body, dict) else 0,
         total_suppliers=supp_body.get("Total", 0) if isinstance(supp_body, dict) else 0,
-    ))
+    ), summary="Store summary retrieved.")
